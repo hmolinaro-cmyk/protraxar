@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ProtraxAR — Install Checker</title>
+  <style>
+    body { font-family: monospace; background: #0a0a0f; color: #f0efe8; padding: 24px; max-width: 560px; margin: 0 auto; }
+    h1 { color: #5dcaa5; font-size: 20px; margin-bottom: 4px; }
+    p.sub { color: rgba(240,239,232,0.45); font-size: 12px; margin-bottom: 24px; }
+    .check { display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; border: 0.5px solid rgba(255,255,255,0.1); background: #14141c; }
+    .icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .label { font-size: 13px; font-weight: bold; }
+    .detail { font-size: 11px; color: rgba(240,239,232,0.5); margin-top: 3px; line-height: 1.5; }
+    .pass .label { color: #5dcaa5; }
+    .fail .label { color: #f09595; }
+    .warn .label { color: #fac775; }
+    .info .label { color: #85b7eb; }
+    hr { border: none; border-top: 0.5px solid rgba(255,255,255,0.1); margin: 20px 0; }
+    #install-test { margin-top: 16px; padding: 12px 20px; background: #5dcaa5; color: #0a0a0f; border: none; border-radius: 8px; font-family: monospace; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; display: none; }
+    #manual-hint { display: none; background: #14141c; border: 0.5px solid rgba(93,202,165,0.4); border-radius: 8px; padding: 14px; margin-top: 12px; font-size: 12px; line-height: 1.8; color: rgba(240,239,232,0.7); }
+    #manual-hint strong { color: #5dcaa5; }
+    a { color: #5dcaa5; }
+  </style>
+</head>
+<body>
+  <h1>📐 ProtraxAR Install Checker</h1>
+  <p class="sub">Diagnosing why the install prompt isn't showing...</p>
+  <div id="results"></div>
+  <hr/>
+  <button id="install-test">✅ Install Prompt is Ready — Tap to Install</button>
+  <div id="manual-hint"></div>
+  <hr/>
+  <p style="font-size:11px;color:rgba(240,239,232,0.35)">
+    When all checks pass, visit <a href="./index.html">index.html</a> and the Install button will work.<br/>
+    Chrome sometimes needs 2 visits before showing the prompt.
+  </p>
+
+<script>
+const results = document.getElementById('results');
+let deferredPrompt = null;
+let promptAvailable = false;
+
+function addCheck(status, label, detail) {
+  const div = document.createElement('div');
+  div.className = 'check ' + status;
+  const icons = { pass: '✅', fail: '❌', warn: '⚠️', info: 'ℹ️' };
+  div.innerHTML = `<span class="icon">${icons[status]}</span><div><div class="label">${label}</div><div class="detail">${detail}</div></div>`;
+  results.appendChild(div);
+}
+
+// 1. HTTPS
+const isHttps = location.protocol === 'https:' || location.hostname === 'localhost';
+addCheck(isHttps ? 'pass' : 'fail',
+  isHttps ? 'HTTPS ✓' : 'Not HTTPS — install blocked',
+  isHttps
+    ? `Running on ${location.protocol}//${location.host}`
+    : 'PWA install requires HTTPS. GitHub Pages provides this automatically — make sure you\'re using the https:// URL, not http://');
+
+// 2. Manifest reachable
+fetch('./manifest.json')
+  .then(r => r.ok ? r.json() : Promise.reject(r.status))
+  .then(m => {
+    addCheck('pass', 'manifest.json found ✓', `name: "${m.name}", start_url: "${m.start_url}", icons: ${m.icons?.length ?? 0}`);
+    const has192 = m.icons?.some(i => i.sizes === '192x192');
+    const has512 = m.icons?.some(i => i.sizes === '512x512');
+    if (has192 && has512) {
+      addCheck('pass', 'Icons declared correctly ✓', '192×192 and 512×512 both present');
+    } else {
+      addCheck('fail', 'Icon sizes missing', `Need both 192×192 and 512×512. Found: ${m.icons?.map(i=>i.sizes).join(', ')}`);
+    }
+  })
+  .catch(err => addCheck('fail', 'manifest.json not found', `Error: ${err}. Make sure manifest.json is uploaded to the same folder as index.html`));
+
+// 3. Service worker
+if ('serviceWorker' in navigator) {
+  addCheck('pass', 'Service Worker API supported ✓', 'This browser supports service workers');
+  navigator.serviceWorker.getRegistration('./').then(reg => {
+    if (reg) {
+      addCheck('pass', 'Service Worker registered ✓', `Scope: ${reg.scope}`);
+    } else {
+      addCheck('warn', 'Service Worker not registered yet', 'sw.js may not be uploaded, or this is your first visit. Visit index.html first to register it, then come back here.');
+    }
+  });
+} else {
+  addCheck('fail', 'Service Worker not supported', 'This browser does not support service workers — try Chrome on Chromebook');
+}
+
+// 4. Icon files reachable
+fetch('./icons/icon-192.png').then(r => {
+  addCheck(r.ok ? 'pass' : 'fail',
+    r.ok ? 'icon-192.png reachable ✓' : 'icon-192.png not found',
+    r.ok ? 'Icon file exists on server' : 'Upload the icons/ folder to GitHub — it must contain icon-192.png and icon-512.png');
+}).catch(() => addCheck('fail', 'icon-192.png not found', 'Upload the icons/ folder to your GitHub repo'));
+
+fetch('./icons/icon-512.png').then(r => {
+  addCheck(r.ok ? 'pass' : 'fail',
+    r.ok ? 'icon-512.png reachable ✓' : 'icon-512.png not found',
+    r.ok ? 'Icon file exists on server' : 'Upload the icons/ folder to GitHub — it must contain icon-192.png and icon-512.png');
+}).catch(() => addCheck('fail', 'icon-512.png not found', 'Upload the icons/ folder to your GitHub repo'));
+
+// 5. Already installed?
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                     window.matchMedia('(display-mode: fullscreen)').matches;
+if (isStandalone) {
+  addCheck('info', 'Already installed as PWA', 'App is running in standalone/fullscreen mode — it\'s installed!');
+} else {
+  addCheck('info', 'Running in browser tab', 'Not yet installed as PWA — that\'s what we\'re fixing');
+}
+
+// 6. Catch install prompt
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  promptAvailable = true;
+  addCheck('pass', '🎉 Install prompt is available!', 'Chrome is ready to install. Use the button below OR look for ⊕ in the address bar of index.html');
+  const btn = document.getElementById('install-test');
+  btn.style.display = 'block';
+  btn.onclick = async () => {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    addCheck(outcome === 'accepted' ? 'pass' : 'warn',
+      outcome === 'accepted' ? '🎉 Installed!' : 'Install dismissed',
+      outcome === 'accepted' ? 'App installed successfully!' : 'You can try again from index.html');
+  };
+});
+
+// After 3s, if no prompt, show manual hint
+setTimeout(() => {
+  if (!promptAvailable && !isStandalone) {
+    addCheck('warn', 'Install prompt not fired yet', 'This can happen on first visit. Try: 1) Visit index.html and wait 30 seconds, 2) Come back to this page, 3) If still no prompt, check all items above are ✅');
+    const hint = document.getElementById('manual-hint');
+    hint.style.display = 'block';
+    hint.innerHTML = `
+      <strong>Manual install steps on Chromebook:</strong><br/>
+      1. Open Chrome and go to your GitHub Pages URL<br/>
+      2. Wait for the page to fully load<br/>
+      3. Look for <strong>⊕</strong> icon in the far right of the address bar<br/>
+      4. Or click the <strong>⋮ three-dot menu</strong> → <strong>"Install ProtraxAR…"</strong><br/>
+      5. If neither appears, all checks above must be ✅ first<br/><br/>
+      <strong>Still not showing?</strong> Try opening Chrome, go to <strong>chrome://flags</strong>,
+      search "bypass", enable <strong>"Bypass user engagement checks"</strong>, relaunch Chrome.
+    `;
+  }
+}, 3000);
+</script>
+</body>
+</html>
