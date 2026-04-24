@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#0a0a0f"/>
-  <path d="M 56 320 A 200 200 0 0 1 456 320 Z" fill="rgba(93,202,165,0.15)" stroke="#5dcaa5" stroke-width="10"/>
-  <line x1="56" y1="320" x2="456" y2="320" stroke="#5dcaa5" stroke-width="10"/>
-  <line x1="256" y1="120" x2="256" y2="336" stroke="#5dcaa5" stroke-width="6" stroke-dasharray="12,8"/>
-  <circle cx="256" cy="320" r="12" fill="#5dcaa5"/>
-  <text x="256" y="400" text-anchor="middle" font-family="monospace" font-size="48" font-weight="bold" fill="#5dcaa5">ProtraxAR</text>
-</svg>
